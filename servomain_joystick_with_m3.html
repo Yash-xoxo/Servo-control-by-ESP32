@@ -1,0 +1,120 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ESP32 Arm Control</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #f5f5f5; }
+    h2 { margin-top: 20px; }
+    .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 30px; padding: 20px; }
+    .section { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); min-width: 280px; }
+    .joystick-box { width: 150px; height: 150px; margin: auto; background: #ddd; border-radius: 50%; position: relative; touch-action: none; }
+    .stick { width: 40px; height: 40px; background: #555; border-radius: 50%; position: absolute; left: 55px; top: 55px; cursor: pointer; }
+    input[type=range] { width: 200px; margin-top: 10px; }
+    button { margin-top: 15px; padding: 10px 20px; background: red; color: white; border: none; border-radius: 10px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>ESP32 Dual Arm Controller</h2>
+
+  <div class="container">
+    <div class="section">
+      <h3>Arm A (m1 & m2)</h3>
+      <div class="joystick-box" id="joystickA"><div class="stick" id="stickA"></div></div>
+      <p>X: <span id="a_x">90</span>° | Y: <span id="a_y">90</span>°</p>
+    </div>
+    
+  <div class="section">
+    <h3>Arm 1 - Z Axis (m3)</h3>
+    <input type="range" min="0" max="180" value="90" id="m3" oninput="sendZ1()">
+    <p>Angle: <span id="m3val">90</span>°</p>
+  </div>
+
+  <div class="section">
+    <h3>Arm B (s4 & s5)</h3>
+
+      <div class="joystick-box" id="joystickB"><div class="stick" id="stickB"></div></div>
+      <p>X: <span id="b_x">90</span>° | Y: <span id="b_y">90</span>°</p>
+    </div>
+    <div class="section">
+      <h3>Arm B - Servo 6 (Continuous)</h3>
+      <input type="range" min="-100" max="100" value="0" id="s6" oninput="sendContinuous()">
+      <p>Speed: <span id="s6val">0</span>%</p>
+    </div>
+  </div>
+
+  <script>
+    function setupJoystick(joystickId, stickId, xLabel, yLabel, xID, yID) {
+      const joystick = document.getElementById(joystickId);
+      const stick = document.getElementById(stickId);
+      const center = joystick.offsetWidth / 2;
+      let dragging = false;
+
+      stick.addEventListener("pointerdown", e => {
+        dragging = true;
+        stick.setPointerCapture(e.pointerId);
+      });
+
+      stick.addEventListener("pointerup", e => {
+        dragging = false;
+        stick.style.left = "55px";
+        stick.style.top = "55px";
+        document.getElementById(xLabel).innerText = 90;
+        document.getElementById(yLabel).innerText = 90;
+        sendControl(xID, 90);
+        sendControl(yID, 90);
+      });
+
+      stick.addEventListener("pointermove", e => {
+        if (!dragging) return;
+        const rect = joystick.getBoundingClientRect();
+        let x = e.clientX - rect.left - center;
+        let y = e.clientY - rect.top - center;
+        const maxDistance = 50;
+        const distance = Math.min(maxDistance, Math.hypot(x, y));
+        const angle = Math.atan2(y, x);
+        let newX = distance * Math.cos(angle);
+        let newY = distance * Math.sin(angle);
+
+        stick.style.left = `${center + newX - 20}px`;
+        stick.style.top = `${center + newY - 20}px`;
+
+        let valX = Math.round(map(center + newX, 0, joystick.offsetWidth, 0, 180));
+        let valY = Math.round(map(center + newY, 0, joystick.offsetHeight, 0, 180));
+
+        document.getElementById(xLabel).innerText = valX;
+        document.getElementById(yLabel).innerText = valY;
+
+        sendControl(xID, valX);
+        sendControl(yID, valY);
+      });
+    }
+
+    function map(value, inMin, inMax, outMin, outMax) {
+      return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+    }
+
+    function sendControl(id, angle) {
+      fetch(`/control?${id}=${angle}`);
+    }
+
+    
+function sendZ1() {
+  const val = document.getElementById("m3").value;
+  document.getElementById("m3val").innerText = val;
+  fetch(`/control?m3=${val}`);
+}
+
+function sendContinuous() {
+
+      const val = document.getElementById("s6").value;
+      document.getElementById("s6val").innerText = val;
+      fetch(`/control?s6=${val}`);
+    }
+
+    setupJoystick("joystickA", "stickA", "a_x", "a_y", "m1", "m2");
+    setupJoystick("joystickB", "stickB", "b_x", "b_y", "s4", "s5");
+  </script>
+</body>
+</html>
